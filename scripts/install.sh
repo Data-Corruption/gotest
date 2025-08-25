@@ -118,9 +118,9 @@ else
     echo "🔴 No prior installation detected. Please run this script via sudo from a non-root user to perform the initial installation." >&2
     exit 1
   fi
-  # write index
-  echo -e "$invoker\n$DATA_PATH" > "$DATA_INDEX_PATH"
 fi
+ # update index
+echo -e "$invoker\n$DATA_PATH" > "$DATA_INDEX_PATH"
 
 # dep check for bare bone distros
 required_bins=(curl gzip install awk)
