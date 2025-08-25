@@ -28,3 +28,5 @@ gotest -h
 ```
 
 > `sudo` is only required for install; afterward, you can run the app normally.
+
+:p
