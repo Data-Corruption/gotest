@@ -188,7 +188,9 @@ echo "Installing binary ..."
 install -Dm755 "$gzip_out" "$INSTALL_PATH" || { echo "🔴 Failed to install binary."; exit 1; }
 
 # verify install / get version
-EFFECTIVE_VER="$("$INSTALL_PATH" -v 2>/dev/null | head -n1)" || { echo "🔴 Failed to verify installation of $INSTALL_PATH" >&2; exit 1; }
+out="$("$INSTALL_PATH" -v 2>/dev/null || true)"
+EFFECTIVE_VER="${out%%$'\n'*}"
+[[ -n "$EFFECTIVE_VER" ]] || { echo "🔴 Failed to verify..."; exit 1; }
 
 # Service ---------------------------------------------------------------------
 
