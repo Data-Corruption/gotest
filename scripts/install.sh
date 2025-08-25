@@ -13,11 +13,11 @@
 # Template variables ----------------------------------------------------------
 
 REPO_OWNER="Data-Corruption"
-REPO_NAME="goweb"
-APP_NAME="goweb"
+REPO_NAME="gotest"
+APP_NAME="gotest"
 
 SERVICE="true"
-SERVICE_DESC="web server daemon for CLI application goweb"
+SERVICE_DESC="web server daemon for CLI application gotest"
 SERVICE_ARGS="serve"
 
 # Startup ---------------------------------------------------------------------

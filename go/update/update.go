@@ -23,8 +23,8 @@ import (
 // Template variables ---------------------------------------------------------
 
 const (
-	RepoURL          = "https://github.com/Data-Corruption/goweb.git"
-	InstallScriptURL = "https://raw.githubusercontent.com/Data-Corruption/goweb/main/scripts/install.sh"
+	RepoURL          = "https://github.com/Data-Corruption/gotest.git"
+	InstallScriptURL = "https://raw.githubusercontent.com/Data-Corruption/gotest/main/scripts/install.sh"
 )
 
 // ----------------------------------------------------------------------------

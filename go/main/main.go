@@ -22,7 +22,7 @@ import (
 
 // Template variables ---------------------------------------------------------
 
-const Name = "goweb" // root command name
+const Name = "gotest" // root command name
 
 // ----------------------------------------------------------------------------
 

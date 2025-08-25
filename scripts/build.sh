@@ -3,7 +3,7 @@
 # Template variables ----------------------------------------------------------
 
 # Replace with app name.
-APP_NAME="goweb"
+APP_NAME="gotest"
 
 # Startup ---------------------------------------------------------------------
 
