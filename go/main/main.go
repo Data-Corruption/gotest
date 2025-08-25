@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"os"
@@ -28,7 +29,7 @@ const Name = "gotest" // root command name
 
 const (
 	DefaultLogLevel = "warn"
-	DataPath        = "/var/lib/" + Name
+	DataIndexPath   = "/var/lib/" + Name + "/index"
 )
 
 var Version string // set by build script
@@ -43,15 +44,21 @@ func run() int {
 	// insert version for update stuff
 	ctx = version.IntoContext(ctx, Version)
 
-	// ensure data dir exists
-	if _, err := os.Stat(DataPath); os.IsNotExist(err) {
-		fmt.Fprintf(os.Stderr, "data path does not exist: %s\n", DataPath)
+	// get data path
+	dataPath, err := getDataPath()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "failed to get data path: %s\n", err)
 		return 1
 	}
-	ctx = datapath.IntoContext(ctx, DataPath)
+	// create data dir if it doesn't exist
+	if err := os.MkdirAll(dataPath, 0755); err != nil {
+		fmt.Fprintf(os.Stderr, "failed to create data path: %s\n", err)
+		return 1
+	}
+	ctx = datapath.IntoContext(ctx, dataPath)
 
 	// get log path
-	logPath := filepath.Join(DataPath, "logs")
+	logPath := filepath.Join(dataPath, "logs")
 	if err := os.MkdirAll(logPath, 0755); err != nil {
 		fmt.Fprintf(os.Stderr, "failed to create log path: %s\n", err)
 		return 1
@@ -173,4 +180,35 @@ func run() int {
 		return 1
 	}
 	return 0
+}
+
+func getDataPath() (string, error) {
+	if os.Geteuid() == 0 {
+		// root: read from index file
+		f, err := os.Open(DataIndexPath)
+		if err != nil {
+			return "", fmt.Errorf("failed to open %s: %w", DataIndexPath, err)
+		}
+		defer f.Close()
+
+		sc := bufio.NewScanner(f)
+		var lines []string
+		for sc.Scan() {
+			lines = append(lines, sc.Text())
+		}
+		if err := sc.Err(); err != nil {
+			return "", fmt.Errorf("failed reading %s: %w", DataIndexPath, err)
+		}
+		if len(lines) < 2 {
+			return "", fmt.Errorf("malformed index file %s", DataIndexPath)
+		}
+		return lines[1], nil
+	}
+
+	// non-root: use $HOME/.goweb
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("cannot determine home dir: %w", err)
+	}
+	return filepath.Join(home, "."+Name), nil
 }

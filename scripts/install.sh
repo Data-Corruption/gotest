@@ -26,7 +26,7 @@ set -euo pipefail
 umask 022
 
 INSTALL_PATH="/usr/local/bin/$APP_NAME"
-DATA_PATH="/var/lib/$APP_NAME"
+DATA_INDEX_PATH="/var/lib/$APP_NAME/index"
 
 SERVICE_NAME="$APP_NAME.service"
 SERVICE_PATH="/etc/systemd/system/$SERVICE_NAME"
@@ -98,10 +98,28 @@ if [[ "$uname_m" != "x86_64" && "$uname_m" != "amd64" ]]; then
   exit 1
 fi
 
-# if not root, exit
+# must be root
 if [[ $EUID -ne 0 ]]; then
   echo "🔴 This script must be run as root. Please run with sudo." >&2
   exit 1
+fi
+
+# determine invoking user
+if [[ -n "$SUDO_USER" && "$SUDO_USER" != "root" ]]; then
+  invoker="$SUDO_USER"
+  invoker_home=$(eval echo "~$invoker")
+  DATA_PATH="$invoker_home/.$APP_NAME"
+else
+  # read index, content is "install_invoker\ndata_path"
+  invoker="$(head -n1 "$DATA_INDEX_PATH" 2>/dev/null || true)"
+  DATA_PATH="$(tail -n1 "$DATA_INDEX_PATH" 2>/dev/null || true)"
+  # if missing either err out
+  if [[ -z "$invoker" || -z "$DATA_PATH" ]]; then
+    echo "🔴 No prior installation detected. Please run this script via sudo from a non-root user to perform the initial installation." >&2
+    exit 1
+  fi
+  # write index
+  echo -e "$invoker\n$DATA_PATH" > "$DATA_INDEX_PATH"
 fi
 
 # dep check for bare bone distros
@@ -130,31 +148,6 @@ fi
 
 # looks good, print info
 echo "📦 Installing $APP_NAME $VERSION ..."
-
-# User / Dirs -----------------------------------------------------------------
-
-# system group
-getent group "$APP_NAME" >/dev/null || groupadd --system "$APP_NAME"
-
-# system user for daemon
-if ! id -u "$APP_NAME" >/dev/null 2>&1; then
-  NOLOGIN="$(command -v nologin || true)"
-  useradd --system --home "$DATA_PATH" --shell "${NOLOGIN:-/usr/sbin/nologin}" --gid "$APP_NAME" "$APP_NAME"
-fi
-
-# data / env config dir
-install -d -o root -g "$APP_NAME" -m 02770 "$DATA_PATH"
-install -d -o root -g "$APP_NAME" -m 02770 "/etc/$APP_NAME"
-
-# add invoking (non-root) user to the group so they can use the CLI without sudo
-added_user=0
-invoker="${SUDO_USER:-}"
-if [[ -n "$invoker" && "$invoker" != "root" ]]; then
-  if ! id -nG "$invoker" 2>/dev/null | tr ' ' '\n' | grep -qx "$APP_NAME"; then
-    usermod -aG "$APP_NAME" "$invoker"
-    added_user=1
-  fi
-fi
 
 # Download the binary ---------------------------------------------------------
 
@@ -208,8 +201,6 @@ StartLimitIntervalSec=600
 StartLimitBurst=5
 
 [Service]
-User=${APP_NAME}
-Group=${APP_NAME}
 WorkingDirectory=${DATA_PATH}
 ExecStart=${INSTALL_PATH} ${SAFE_ARGS}
 Restart=always
@@ -217,30 +208,16 @@ RestartSec=5
 
 AmbientCapabilities=CAP_NET_BIND_SERVICE
 CapabilityBoundingSet=CAP_NET_BIND_SERVICE
-NoNewPrivileges=yes
-PrivateTmp=yes
-ProtectSystem=strict
-ProtectHome=yes
-ReadWritePaths=${DATA_PATH} /etc/${APP_NAME}
-LockPersonality=yes
-MemoryDenyWriteExecute=yes
 LimitNOFILE=65535
-UMask=0007
-RestrictSUIDSGID=yes
-ProtectClock=yes
-ProtectHostname=yes
-ProtectKernelModules=yes
-ProtectKernelTunables=yes
-ProtectControlGroups=yes
 RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
 
-EnvironmentFile=-/etc/${APP_NAME}/${APP_NAME}.env
+EnvironmentFile=-${DATA_PATH}/${APP_NAME}.env
 
 [Install]
 WantedBy=multi-user.target
 EOF
 
-  # delete health file
+  # delete health file if exists
   rm -f "$DATA_PATH/health"
 
   # enable and start/restart service
@@ -310,16 +287,9 @@ EOF
   echo "    Start:   sudo systemctl start $SERVICE_NAME"
   echo "    Restart: sudo systemctl restart $SERVICE_NAME"
   echo "    Reset:   sudo systemctl reset-failed $SERVICE_NAME"
-  echo "    Env:     sudo \${EDITOR:-nano} /etc/$APP_NAME/$APP_NAME.env && sudo systemctl restart $SERVICE_NAME"
+  echo "    Env:     sudo \${EDITOR:-nano} $DATA_PATH/$APP_NAME.env && sudo systemctl restart $SERVICE_NAME"
 fi
 
 echo ""
 echo "🟢 Installed: $APP_NAME (${EFFECTIVE_VER:-$VERSION}) → $INSTALL_PATH"
-echo ""
-
-if (( added_user )); then
-  echo "Added $invoker to group $APP_NAME."
-  echo "➡ Re-login (or run: newgrp $APP_NAME) before using the CLI without sudo."
-elif [[ -z "${SUDO_USER:-}" || "${SUDO_USER:-}" == "root" ]]; then
-  echo "Tip: allow users with: sudo usermod -aG $APP_NAME <user>"
-fi
+echo "    Run:       `$APP_NAME -v` to verify (you may need to open a new terminal)"
